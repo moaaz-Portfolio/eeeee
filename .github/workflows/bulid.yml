@@ -1,0 +1,56 @@
+name: Build & publish installer
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build firmware for ESP32-S3
+        shell: bash
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          . $IDF_PATH/export.sh
+          idf.py set-target esp32s3
+          idf.py build
+          idf.py merge-bin -o merged.bin
+          mkdir -p docs/firmware
+          cp build/merged.bin docs/firmware/radar-s3-merged.bin
+          cp build/esp32s3-wifi-radar.bin docs/firmware/esp32s3-wifi-radar.bin
+          ls -l docs/firmware
+
+      - name: Keep firmware files as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: docs/firmware/*.bin
+
+      - name: Prepare Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
