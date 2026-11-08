@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WiFi Radar Setup</title>
+<style>
+:root{--bg:#0e1116;--card:#171b22;--line:#2a313c;--tx:#eef1f5;--mut:#8b95a5;--ac:#19c37d;--ac2:#0f8f5c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.5 system-ui,Segoe UI,Tahoma,Arial,sans-serif;padding:20px}
+.w{max-width:440px;margin:0 auto}
+h1{font-size:24px;margin:8px 0 2px}
+.sub{color:var(--mut);margin:0 0 18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px}
+label{display:block;font-size:13px;color:var(--mut);margin:12px 0 5px}
+input,select{width:100%;padding:13px;border-radius:10px;border:1px solid var(--line);background:#0e1116;color:var(--tx);font-size:16px}
+button{width:100%;padding:14px;border:0;border-radius:10px;background:var(--ac);color:#04140c;font-weight:700;font-size:16px;margin-top:16px;cursor:pointer}
+button.sec{background:transparent;border:1px solid var(--line);color:var(--tx);margin-top:8px;font-weight:600}
+button:disabled{opacity:.5}
+.row{display:flex;gap:8px;align-items:center}
+.row>*{flex:1}
+.row .sm{flex:0 0 auto;width:auto;padding:0 14px;height:46px;margin:0}
+#msg{margin-top:12px;min-height:22px;color:var(--mut);font-size:14px}
+.err{color:#ff6b6b!important}
+.top{display:flex;justify-content:space-between;align-items:center}
+.lang{background:transparent;border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:6px 12px;width:auto;margin:0;font-size:13px}
+</style>
+</head>
+<body>
+<div class="w">
+  <div class="top"><h1>📡 WiFi Radar</h1><button class="lang" id="lg">EN</button></div>
+  <p class="sub" data-i="sub"></p>
+  <div class="card">
+    <label data-i="net"></label>
+    <div class="row">
+      <select id="list"><option value="" data-i="pick"></option></select>
+      <button class="sec sm" id="scan">⟳</button>
+    </div>
+    <label data-i="ssid"></label>
+    <input id="ssid" autocomplete="off" autocapitalize="none" maxlength="32">
+    <label data-i="pass"></label>
+    <div class="row">
+      <input id="pass" type="password" autocomplete="off" maxlength="64">
+      <button class="sec sm" id="eye">👁</button>
+    </div>
+    <label data-i="host"></label>
+    <input id="host" autocapitalize="none" maxlength="31">
+    <button id="save" data-i="connect"></button>
+    <div id="msg"></div>
+  </div>
+</div>
+<script>
+const D={
+ar:{sub:"وصّل الجهاز بشبكة الواي فاي بتاعتك",net:"الشبكات القريبة",pick:"اختار شبكة…",ssid:"اسم الشبكة",pass:"كلمة السر (سيبها فاضية لو الشبكة مفتوحة)",host:"اسم الجهاز (للدخول عليه بعدين)",connect:"اتصال",scanning:"بدوّر على الشبكات…",saved:"اتحفظت! الجهاز بيعيد التشغيل… ارجع لشبكتك العادية وافتح الرابط:",nossid:"اكتب اسم الشبكة",fail:"حصل خطأ، جرّب تاني"},
+en:{sub:"Connect the device to your Wi-Fi",net:"Nearby networks",pick:"Choose a network…",ssid:"Network name",pass:"Password (leave empty for open networks)",host:"Device name (used to open it later)",connect:"Connect",scanning:"Scanning…",saved:"Saved! The device is restarting… rejoin your normal Wi-Fi and open:",nossid:"Enter the network name",fail:"Something went wrong, try again"}};
+let lang=localStorage.getItem('lang')||'ar';
+const $=id=>document.getElementById(id);
+const t=k=>D[lang][k]||k;
+function ap(){document.documentElement.lang=lang;document.documentElement.dir=lang=='ar'?'rtl':'ltr';
+ document.querySelectorAll('[data-i]').forEach(e=>e.textContent=t(e.dataset.i));$('lg').textContent=lang=='ar'?'EN':'عربي'}
+$('lg').onclick=()=>{lang=lang=='ar'?'en':'ar';localStorage.setItem('lang',lang);ap()};
+const api=(p,o={})=>fetch(p,Object.assign({headers:{'X-Radar':'1','Content-Type':'application/json'}},o)).then(r=>r.json());
+async function scan(refresh){
+ $('msg').className='';$('msg').textContent=t('scanning');
+ try{const l=await api('/api/scan'+(refresh?'?refresh=1':''));
+  const s=$('list');s.innerHTML='<option value="">'+t('pick')+'</option>';
+  l.sort((a,b)=>b.rssi-a.rssi).forEach(n=>{const o=document.createElement('option');o.value=n.ssid;o.textContent=(n.open?'🔓 ':'🔒 ')+n.ssid+'  ('+n.rssi+')';s.appendChild(o)});
+  $('msg').textContent='';}catch(e){$('msg').textContent=''}
+}
+$('list').onchange=e=>{if(e.target.value)$('ssid').value=e.target.value};
+$('scan').onclick=()=>scan(true);
+$('eye').onclick=()=>{$('pass').type=$('pass').type=='password'?'text':'password'};
+$('save').onclick=async()=>{
+ const ssid=$('ssid').value.trim();
+ if(!ssid){$('msg').className='err';$('msg').textContent=t('nossid');return}
+ $('save').disabled=true;
+ const body={ssid,password:$('pass').value,lang};
+ const h=$('host').value.trim();if(h)body.hostname=h;
+ try{const r=await api('/api/wifi',{method:'POST',body:JSON.stringify(body)});
+  if(r.ok){$('msg').className='';$('msg').textContent=t('saved')+' http://'+(h||'s3radar')+'.local'}
+  else throw 0}
+ catch(e){$('msg').className='err';$('msg').textContent=t('fail');$('save').disabled=false}
+};
+ap();scan(false);
+</script>
+</body>
+</html>

@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WiFi Radar</title>
+<style>
+:root{--bg:#0e1116;--card:#171b22;--line:#2a313c;--tx:#eef1f5;--mut:#8b95a5;--ac:#19c37d;--warn:#f5a524;--bad:#ff6b6b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,Segoe UI,Tahoma,Arial,sans-serif;padding:16px;transition:background .25s}
+body.on{background:#0b2a1d}
+.w{max-width:720px;margin:0 auto}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+h1{font-size:20px;margin:0}
+.chip{display:inline-block;padding:3px 10px;border-radius:99px;border:1px solid var(--line);color:var(--mut);font-size:12px}
+.chip.ok{color:var(--ac);border-color:var(--ac)}
+.chip.warn{color:var(--warn);border-color:var(--warn)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-top:12px}
+#big{text-align:center;padding:26px 10px}
+#state{font-size:34px;font-weight:800;color:var(--mut)}
+body.on #state{color:var(--ac)}
+#sub{margin-top:8px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+canvas{width:100%;height:110px;display:block;margin-top:14px}
+.meta{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;color:var(--mut);font-size:12px;margin-top:8px}
+.tabs{display:flex;gap:6px;overflow-x:auto;margin-top:14px;padding-bottom:2px}
+.tabs button{flex:0 0 auto;background:var(--card);border:1px solid var(--line);color:var(--mut);border-radius:10px;padding:9px 14px;font-size:14px;cursor:pointer}
+.tabs button.a{color:#04140c;background:var(--ac);border-color:var(--ac);font-weight:700}
+.panel{display:none}.panel.a{display:block}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:560px){.g{grid-template-columns:1fr}}
+label{display:block;font-size:12px;color:var(--mut);margin:10px 0 4px}
+input,select{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:#0e1116;color:var(--tx);font-size:15px}
+input[type=range]{padding:0;height:30px;accent-color:var(--ac)}
+input[type=color]{padding:2px;height:42px}
+input[type=checkbox]{width:20px;height:20px;accent-color:var(--ac)}
+.chk{display:flex;align-items:center;gap:10px;margin-top:12px}.chk label{margin:0;color:var(--tx);font-size:14px}
+button.p{background:var(--ac);color:#04140c;border:0;border-radius:10px;padding:12px 20px;font-weight:700;font-size:15px;cursor:pointer;margin-top:14px}
+button.s{background:transparent;color:var(--tx);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:14px;cursor:pointer;margin:6px 6px 0 0}
+button.d{border-color:var(--bad);color:var(--bad)}
+.pre{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.hint{color:var(--mut);font-size:12px;margin-top:6px}
+h3{margin:4px 0 0;font-size:15px}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#222a35;border:1px solid var(--line);padding:10px 18px;border-radius:10px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9}
+#toast.s{opacity:1}
+progress{width:100%;height:10px;margin-top:10px}
+.sep{height:1px;background:var(--line);margin:16px 0}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13px;color:var(--mut)}
+.kv b{color:var(--tx);font-weight:500;word-break:break-all}
+</style>
+</head>
+<body>
+<div class="w">
+ <div class="top">
+  <h1>📡 <span data-i="title"></span></h1>
+  <div><span class="chip" id="net">…</span> <button class="s" id="lg" style="margin:0;padding:4px 10px">EN</button></div>
+ </div>
+
+ <div class="card" id="big">
+  <div id="state">…</div>
+  <div id="sub"><span class="chip" id="pres"></span><span class="chip warn" id="warm" style="display:none" data-i="warming"></span><span class="chip warn" id="off" style="display:none" data-i="offline"></span></div>
+  <canvas id="cv" width="680" height="110"></canvas>
+  <div class="meta"><span id="m_ip"></span><span id="m_rssi"></span><span id="m_jit"></span><span id="m_up"></span></div>
+ </div>
+
+ <div class="tabs" id="tabs">
+  <button data-p="det" class="a" data-i="t_det"></button>
+  <button data-p="out" data-i="t_out"></button>
+  <button data-p="net" data-i="t_net"></button>
+  <button data-p="int" data-i="t_int"></button>
+  <button data-p="sys" data-i="t_sys"></button>
+ </div>
+
+ <!-- DETECTION -->
+ <div class="card panel a" id="p_det">
+  <h3 data-i="sens"></h3>
+  <div class="pre">
+   <button class="s" data-pre="0.4" data-i="low"></button>
+   <button class="s" data-pre="0.75" data-i="med"></button>
+   <button class="s" data-pre="0.95" data-i="high"></button>
+  </div>
+  <label><span data-i="motion_s"></span>: <b id="v_sens"></b></label>
+  <input type="range" min="0.001" max="1" step="0.001" data-k="sensitivity" data-t="f" data-v="v_sens">
+  <label><span data-i="pres_s"></span>: <b id="v_ps"></b></label>
+  <input type="range" min="0" max="1" step="0.001" data-k="presence_sensitivity" data-t="f" data-v="v_ps">
+  <div class="g">
+   <div><label data-i="hold"></label><input type="number" min="0" max="3600" data-k="hold_s" data-t="n"></div>
+   <div><label data-i="source"></label>
+    <select data-k="source" data-t="n">
+     <option value="0" data-i="src0"></option><option value="1" data-i="src1"></option><option value="2" data-i="src2"></option>
+    </select></div>
+  </div>
+  <details style="margin-top:12px"><summary class="hint" data-i="adv"></summary>
+   <div class="g">
+    <div><label>jitter_min</label><input type="number" step="0.001" data-k="jitter_min" data-t="f"></div>
+    <div><label>filter (ms)</label><input type="number" step="10" data-k="filter_ms" data-t="n"></div>
+    <div><label data-i="ping"></label><input type="number" min="5" max="200" data-k="ping_hz" data-t="n"></div>
+   </div>
+  </details>
+  <button class="p" data-save="p_det" data-i="save"></button>
+
+  <div class="sep"></div>
+  <h3 data-i="cal"></h3>
+  <p class="hint" data-i="cal_h"></p>
+  <div class="g"><div><label data-i="cal_d"></label><input type="number" id="cal_dur" value="20" min="5" max="120"></div></div>
+  <button class="s" id="cal_go" data-i="cal_go"></button>
+  <button class="s" id="cal_clr" data-i="cal_clr"></button>
+  <button class="s" id="cal_base" data-i="cal_base"></button>
+  <progress id="cal_pr" value="0" max="100" style="display:none"></progress>
+  <div class="hint" id="cal_msg"></div>
+ </div>
+
+ <!-- OUTPUTS -->
+ <div class="card panel" id="p_out">
+  <h3 data-i="led"></h3>
+  <div class="g">
+   <div><label data-i="led_t"></label>
+    <select data-k="led_type" data-t="n"><option value="0" data-i="none"></option><option value="1">WS2812 (RGB)</option><option value="2">GPIO LED</option></select></div>
+   <div><label>GPIO</label><input type="number" min="0" max="48" data-k="led_gpio" data-t="n"></div>
+   <div><label data-i="led_c"></label><input type="color" data-k="led_color" data-t="s"></div>
+   <div><label data-i="led_b"></label><input type="number" min="1" max="100" data-k="led_brightness" data-t="n"></div>
+  </div>
+  <p class="hint" data-i="led_h"></p>
+  <div class="sep"></div>
+  <h3 data-i="relay"></h3>
+  <div class="g">
+   <div><label>GPIO (-1 = <span data-i="none"></span>)</label><input type="number" min="-1" max="48" data-k="out_gpio" data-t="n"></div>
+   <div><label data-i="out_hold"></label><input type="number" min="0" max="3600" data-k="out_hold_s" data-t="n"></div>
+  </div>
+  <div class="chk"><input type="checkbox" id="oah" data-k="out_active_high" data-t="b"><label for="oah" data-i="out_hi"></label></div>
+  <p class="hint" data-i="relay_h"></p>
+  <button class="p" data-save="p_out" data-i="save"></button>
+ </div>
+
+ <!-- NETWORK -->
+ <div class="card panel" id="p_net">
+  <h3 data-i="mode"></h3>
+  <div class="g">
+   <div><label data-i="role"></label>
+    <select data-k="role" data-t="n"><option value="0" data-i="role0"></option><option value="1" data-i="role1"></option><option value="2" data-i="role2"></option></select></div>
+   <div><label data-i="host"></label><input data-k="hostname" data-t="s" maxlength="31"></div>
+   <div><label data-i="sh"></label><input data-k="stream_host" data-t="s" placeholder="192.168.1.20"></div>
+   <div><label>UDP port</label><input type="number" data-k="stream_port" data-t="n"></div>
+   <div><label data-i="pair"></label><input data-k="pair_mac" data-t="s" placeholder="aa:bb:cc:dd:ee:ff"></div>
+  </div>
+  <p class="hint" data-i="pair_h"></p>
+  <div class="hint"><span data-i="my_mac"></span>: <b id="my_mac" style="color:var(--tx)"></b></div>
+  <div class="sep"></div>
+  <h3 data-i="pw_t"></h3>
+  <div class="g"><div><label data-i="pw"></label><input type="password" data-k="ui_pass" data-t="s" autocomplete="new-password" maxlength="32"></div></div>
+  <div class="chk"><input type="checkbox" id="pwc" data-k="ui_pass_clear" data-t="b"><label for="pwc" data-i="pw_clr"></label></div>
+  <button class="p" data-save="p_net" data-i="save"></button>
+
+  <div class="sep"></div>
+  <h3 data-i="wifi_t"></h3>
+  <div class="g">
+   <div><label data-i="net_l"></label><select id="wl"><option value=""></option></select></div>
+   <div><label data-i="ssid"></label><input id="ws" maxlength="32" autocapitalize="none"></div>
+   <div><label data-i="wpass"></label><input id="wp" type="password" maxlength="64"></div>
+  </div>
+  <button class="s" id="w_scan" data-i="scan"></button>
+  <button class="p" id="w_save" data-i="w_save"></button>
+ </div>
+
+ <!-- INTEGRATIONS -->
+ <div class="card panel" id="p_int">
+  <h3>MQTT / Home Assistant</h3>
+  <div class="chk"><input type="checkbox" id="mq" data-k="mqtt_en" data-t="b"><label for="mq" data-i="mq_en"></label> <span class="chip" id="mq_st"></span></div>
+  <div class="g">
+   <div><label data-i="mq_host"></label><input data-k="mqtt_host" data-t="s" placeholder="192.168.1.10"></div>
+   <div><label>Port</label><input type="number" data-k="mqtt_port" data-t="n"></div>
+   <div><label data-i="user"></label><input data-k="mqtt_user" data-t="s" autocomplete="off"></div>
+   <div><label data-i="pass"></label><input type="password" data-k="mqtt_pass" data-t="s" autocomplete="new-password"></div>
+   <div><label>Topic prefix</label><input data-k="mqtt_prefix" data-t="s"></div>
+  </div>
+  <div class="chk"><input type="checkbox" id="mha" data-k="mqtt_ha" data-t="b"><label for="mha" data-i="mq_ha"></label></div>
+  <div class="sep"></div>
+  <h3>Webhook</h3>
+  <label data-i="wh"></label>
+  <input data-k="webhook_url" data-t="s" placeholder="http://192.168.1.20:8123/api/webhook/xyz">
+  <p class="hint" data-i="wh_h"></p>
+  <button class="p" data-save="p_int" data-i="save"></button>
+ </div>
+
+ <!-- SYSTEM -->
+ <div class="card panel" id="p_sys">
+  <div class="kv" id="kv"></div>
+  <div class="sep"></div>
+  <h3 data-i="ota"></h3>
+  <p class="hint" data-i="ota_h"></p>
+  <input type="file" id="ota_f" accept=".bin">
+  <button class="p" id="ota_go" data-i="ota_go"></button>
+  <progress id="ota_pr" value="0" max="100" style="display:none"></progress>
+  <div class="sep"></div>
+  <button class="s" id="b_reboot" data-i="reboot"></button>
+  <button class="s d" id="b_rw" data-i="rw"></button>
+  <button class="s d" id="b_fr" data-i="fr"></button>
+ </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const D={
+ar:{title:"رادار الواي فاي",t_det:"الكشف",t_out:"المخرجات",t_net:"الشبكة والوضع",t_int:"الربط",t_sys:"النظام",
+ moving:"في حركة!",still:"مفيش حركة",pres_y:"في حد موجود",pres_n:"مفيش تواجد",warming:"بيسخّن… استنى شوية",offline:"مفيش اتصال بالجهاز",
+ sens:"الحساسية",low:"منخفضة",med:"متوسطة",high:"عالية",motion_s:"حساسية الحركة",pres_s:"حساسية التواجد",hold:"إبقاء الحالة (ثواني)",source:"مصدر الإشارة",
+ src0:"الراوتر",src1:"لوحة مساعدة (Pair)",src2:"أي واحد فيهم",adv:"إعدادات متقدمة",ping:"سرعة الإرسال (Hz)",save:"حفظ",saved:"اتحفظ ✓",
+ cal:"المعايرة",cal_h:"اخرج من الأوضة (أو اقعد ثابت خالص) وقت المعايرة عشان الجهاز يتعلم الأوضة وهي هادية.",cal_d:"مدة المعايرة (ثواني)",cal_go:"ابدأ المعايرة",cal_clr:"امسح المعايرة",cal_base:"صفّر الخط المرجعي",
+ cal_run:"المعايرة شغالة… متتحركش",cal_done:"المعايرة تمت ✓",
+ led:"لمبة الحالة",led_t:"النوع",none:"مفيش",led_c:"لون الحركة",led_b:"السطوع %",led_h:"لوحة DevKitC-1 فيها لمبة RGB على GPIO 48 (أو 38 في بعض النسخ). الأزرق الوامض = بيتصل، البرتقالي = وضع الإعداد.",
+ relay:"مخرج خارجي (ريلاي / بازر)",out_hold:"يفضل شغال بعد الحركة (ثواني)",out_hi:"يشتغل عند HIGH",relay_h:"وصّل ريلاي أو بازر على الـ GPIO ده. تجنب GPIO 0 و 19-20 و 26-32.",
+ mode:"وضع الجهاز",role:"الدور",role0:"حساس (يكشف الحركة)",role1:"مُرسل (لوحة مساعدة)",role2:"بث CSI للكمبيوتر (تعرف نشاط)",sh:"عنوان الكمبيوتر (فاضي = تلقائي)",stream_msg:"بيبعت CSI للكمبيوتر",host:"اسم الجهاز",pair:"MAC اللوحة المساعدة",
+ pair_h:"لو عندك لوحة S3 تانية: خليها «مُرسل» وحط الـ MAC بتاعها هنا، وبعدها اختار مصدر الإشارة. دقة أعلى ومش بتعتمد على الراوتر. (بيحتاج إعادة تشغيل)",my_mac:"الـ MAC بتاع اللوحة دي",
+ pw_t:"حماية لوحة التحكم",pw:"كلمة سر جديدة (المستخدم: admin)",pw_clr:"شيل كلمة السر",
+ wifi_t:"تغيير شبكة الواي فاي",net_l:"الشبكات القريبة",ssid:"اسم الشبكة",wpass:"كلمة سر الشبكة",scan:"بحث عن شبكات",w_save:"حفظ وإعادة تشغيل",
+ mq_en:"تفعيل MQTT",mq_host:"عنوان السيرفر",user:"المستخدم",pass:"كلمة السر",mq_ha:"إضافة تلقائية في Home Assistant",
+ wh:"رابط Webhook (POST عند تغيّر الحالة)",wh_h:"بيبعت JSON فيه device و event و state.",
+ ota:"تحديث الفيرموير",ota_h:"ارفع ملف الـ .bin (الملف esp32s3-wifi-radar.bin مش الـ merged).",ota_go:"رفع وتحديث",
+ reboot:"إعادة تشغيل",rw:"نسيان الواي فاي",fr:"ضبط المصنع",
+ c_rw:"هيمسح الواي فاي ويرجع لوضع الإعداد. متأكد؟",c_fr:"هيمسح كل الإعدادات. متأكد؟",rb:"الجهاز بيعيد التشغيل…",rbn:"محتاج إعادة تشغيل عشان التغيير ده يشتغل. تعمل دلوقتي؟",
+ up:"شغال من",sender_msg:"الجهاز في وضع «مُرسل» — بيبعت إشارة للوحة الحساسة بس.",err:"حصل خطأ",ota_ok:"تم التحديث، بيعيد التشغيل…",
+ k_fw:"الإصدار",k_ip:"العنوان",k_mac:"MAC",k_heap:"ذاكرة فاضية",k_ssid:"الشبكة"},
+en:{title:"WiFi Radar",t_det:"Detection",t_out:"Outputs",t_net:"Network & mode",t_int:"Integrations",t_sys:"System",
+ moving:"MOTION!",still:"NO MOTION",pres_y:"Someone present",pres_n:"No presence",warming:"Warming up…",offline:"Device unreachable",
+ sens:"Sensitivity",low:"Low",med:"Medium",high:"High",motion_s:"Motion sensitivity",pres_s:"Presence sensitivity",hold:"Hold state (s)",source:"Signal source",
+ src0:"Router",src1:"Paired helper board",src2:"Either",adv:"Advanced",ping:"Send rate (Hz)",save:"Save",saved:"Saved ✓",
+ cal:"Calibration",cal_h:"Leave the room (or stay perfectly still) so the device can learn the empty room.",cal_d:"Duration (s)",cal_go:"Start calibration",cal_clr:"Clear calibration",cal_base:"Reset baseline",
+ cal_run:"Calibrating… stay out of the way",cal_done:"Calibration done ✓",
+ led:"Status LED",led_t:"Type",none:"None",led_c:"Motion colour",led_b:"Brightness %",led_h:"DevKitC-1 has an RGB LED on GPIO 48 (38 on some revisions). Blinking blue = connecting, orange = setup mode.",
+ relay:"External output (relay / buzzer)",out_hold:"Stay on after motion (s)",out_hi:"Active HIGH",relay_h:"Wire a relay or buzzer to this GPIO. Avoid GPIO 0, 19-20 and 26-32.",
+ mode:"Device mode",role:"Role",role0:"Sensor (detects motion)",role1:"Sender (helper board)",role2:"CSI stream to PC (activity AI)",sh:"PC address (empty = auto)",stream_msg:"Streaming CSI to the PC",host:"Device name",pair:"Helper board MAC",
+ pair_h:"With a second S3: set it to “Sender”, paste its MAC here, then pick the signal source. Better accuracy, independent of the router. (needs reboot)",my_mac:"This board's MAC",
+ pw_t:"Dashboard password",pw:"New password (user: admin)",pw_clr:"Remove password",
+ wifi_t:"Change Wi-Fi network",net_l:"Nearby networks",ssid:"Network name",wpass:"Network password",scan:"Scan",w_save:"Save & restart",
+ mq_en:"Enable MQTT",mq_host:"Broker address",user:"User",pass:"Password",mq_ha:"Home Assistant auto-discovery",
+ wh:"Webhook URL (POST on state change)",wh_h:"Sends JSON with device, event and state.",
+ ota:"Firmware update",ota_h:"Upload the .bin file (esp32s3-wifi-radar.bin, not the merged one).",ota_go:"Upload & update",
+ reboot:"Reboot",rw:"Forget Wi-Fi",fr:"Factory reset",
+ c_rw:"This erases Wi-Fi and returns to setup mode. Sure?",c_fr:"This erases all settings. Sure?",rb:"Restarting…",rbn:"A reboot is needed for this change. Reboot now?",
+ up:"Uptime",sender_msg:"Device is in “Sender” mode — it only transmits for the sensor board.",err:"Error",ota_ok:"Updated, restarting…",
+ k_fw:"Version",k_ip:"Address",k_mac:"MAC",k_heap:"Free heap",k_ssid:"Network"}};
+let lang=localStorage.getItem('lang')||'ar';
+const $=id=>document.getElementById(id);
+const t=k=>(D[lang]&&D[lang][k])||D.en[k]||k;
+const api=(p,o={})=>fetch(p,Object.assign({headers:{'X-Radar':'1','Content-Type':'application/json'}},o)).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()});
+function toast(m){const e=$('toast');e.textContent=m;e.className='s';clearTimeout(toast.t);toast.t=setTimeout(()=>e.className='',2200)}
+function ap(){document.documentElement.lang=lang;document.documentElement.dir=lang=='ar'?'rtl':'ltr';
+ document.querySelectorAll('[data-i]').forEach(e=>e.textContent=t(e.dataset.i));$('lg').textContent=lang=='ar'?'EN':'عربي';render(last)}
+$('lg').onclick=()=>{lang=lang=='ar'?'en':'ar';localStorage.setItem('lang',lang);ap();api('/api/config',{method:'POST',body:JSON.stringify({lang})}).catch(()=>{})};
+
+/* tabs */
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{
+ document.querySelectorAll('#tabs button,.panel').forEach(x=>x.classList.remove('a'));
+ b.classList.add('a');$('p_'+b.dataset.p).classList.add('a')});
+
+/* live status */
+let last=null,hist=[],fails=0;
+const fmtUp=s=>{const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h?h+'h '+m+'m':m+'m '+(s%60)+'s'};
+function render(s){
+ if(!s)return;
+ const stream=s.role==2,sender=s.role==1||stream;
+ document.body.classList.toggle('on',!!s.motion&&!sender);
+ $('state').textContent=stream?'📡':(sender?'📤':(s.motion?t('moving'):t('still')));
+ const p=$('pres');p.style.display=sender?'none':'';p.textContent=s.presence?t('pres_y'):t('pres_n');p.className='chip'+(s.presence?' ok':'');
+ $('warm').style.display=(!sender&&s.running&&!s.ready)?'':'none';
+ $('net').textContent=(s.mode=='setup'?'⚙ ':'')+(s.hostname||'')+'.local';
+ $('net').className='chip'+(s.mq?' ok':'');
+ $('m_ip').textContent=s.ip||'';
+ $('m_rssi').textContent=s.rssi!=null?s.rssi+' dBm':'';
+ $('m_jit').textContent=stream?(t('stream_msg')+' · '+(s.csi_sent||0)):sender?t('sender_msg'):'jitter '+(s.jitter||0).toFixed(3);
+ $('m_up').textContent=t('up')+' '+fmtUp(s.uptime||0);
+ $('my_mac').textContent=s.mac||'';
+ $('kv').innerHTML=[['k_fw',s.fw],['k_ip',s.ip],['k_mac',s.mac],['k_ssid',s.ssid||'-'],['k_heap',Math.round((s.heap||0)/1024)+' KB']]
+   .map(r=>'<span>'+t(r[0])+'</span><b>'+r[1]+'</b>').join('');
+}
+function draw(){
+ const c=$('cv'),x=c.getContext('2d'),W=c.width,H=c.height;x.clearRect(0,0,W,H);
+ if(hist.length<2)return;
+ const mx=Math.max(0.05,...hist.map(h=>h.j))*1.15,n=hist.length;
+ x.lineWidth=2;x.strokeStyle='#19c37d';x.fillStyle='rgba(25,195,125,.12)';x.beginPath();
+ hist.forEach((h,i)=>{const px=i/(n-1)*W,py=H-(h.j/mx)*(H-6)-3;i?x.lineTo(px,py):x.moveTo(px,py)});
+ x.stroke();x.lineTo(W,H);x.lineTo(0,H);x.fill();
+ x.fillStyle='rgba(255,180,0,.9)';hist.forEach((h,i)=>{if(h.m)x.fillRect(i/(n-1)*W,0,Math.max(2,W/n),4)});
+}
+async function poll(){
+ try{const s=await api('/api/status');fails=0;$('off').style.display='none';last=s;render(s);
+  hist.push({j:s.jitter||0,m:s.motion});if(hist.length>120)hist.shift();draw();
+  $('mq_st').textContent=s.mq?'●':'○';$('mq_st').className='chip'+(s.mq?' ok':'');}
+ catch(e){if(++fails>3)$('off').style.display=''}
+ setTimeout(poll,450);
+}
+
+/* settings forms */
+let cfg={};
+function fill(){document.querySelectorAll('[data-k]').forEach(e=>{const k=e.dataset.k;if(!(k in cfg))return;
+ if(e.type=='checkbox')e.checked=!!cfg[k];else e.value=cfg[k];
+ if(e.dataset.v)$(e.dataset.v).textContent=(+cfg[k]).toFixed(3)})}
+document.querySelectorAll('input[type=range]').forEach(r=>r.oninput=()=>$(r.dataset.v).textContent=(+r.value).toFixed(3));
+document.querySelectorAll('[data-pre]').forEach(b=>b.onclick=()=>{const r=document.querySelector('[data-k=sensitivity]');r.value=b.dataset.pre;$('v_sens').textContent=(+r.value).toFixed(3)});
+async function loadCfg(){cfg=await api('/api/config');if(cfg.lang&&!localStorage.getItem('lang')){lang=cfg.lang;ap()}fill()}
+document.querySelectorAll('[data-save]').forEach(b=>b.onclick=async()=>{
+ const body={};
+ $(b.dataset.save).querySelectorAll('[data-k]').forEach(e=>{
+  const k=e.dataset.k,ty=e.dataset.t;
+  if(ty=='b')body[k]=e.checked;else if(ty=='n')body[k]=parseInt(e.value,10);else if(ty=='f')body[k]=parseFloat(e.value);else body[k]=e.value});
+ try{const r=await api('/api/config',{method:'POST',body:JSON.stringify(body)});
+  if(!r.ok)throw 0;toast(t('saved'));
+  ['ui_pass','mqtt_pass'].forEach(k=>{const e=document.querySelector('[data-k='+k+']');if(e)e.value=''});
+  if(r.reboot_needed&&confirm(t('rbn')))reboot();
+  loadCfg()}catch(e){toast(t('err'))}});
+
+/* calibration */
+let calT=null;
+$('cal_go').onclick=async()=>{
+ const dur=Math.max(5,parseInt($('cal_dur').value,10)||20);
+ try{await api('/api/calibrate',{method:'POST',body:JSON.stringify({action:'start'})})}catch(e){toast(t('err'));return}
+ const pr=$('cal_pr');pr.style.display='';pr.value=0;$('cal_msg').textContent=t('cal_run');
+ const t0=Date.now();clearInterval(calT);
+ calT=setInterval(async()=>{
+  const p=(Date.now()-t0)/(dur*1000)*100;pr.value=Math.min(100,p);
+  if(p>=100){clearInterval(calT);
+   try{const r=await api('/api/calibrate',{method:'POST',body:JSON.stringify({action:'stop'})});
+    $('cal_msg').textContent=t('cal_done')+(r.jitter!=null?'  (jitter '+r.jitter.toFixed(3)+')':'')}
+   catch(e){$('cal_msg').textContent=t('err')}
+   pr.style.display='none'}},200)};
+$('cal_clr').onclick=()=>api('/api/calibrate',{method:'POST',body:JSON.stringify({action:'clear'})}).then(()=>toast(t('saved'))).catch(()=>toast(t('err')));
+$('cal_base').onclick=()=>api('/api/calibrate',{method:'POST',body:JSON.stringify({action:'baseline'})}).then(()=>toast(t('saved'))).catch(()=>toast(t('err')));
+
+/* wifi change */
+async function scan(){try{const l=await api('/api/scan?refresh=1');const s=$('wl');s.innerHTML='<option value=""></option>';
+ l.sort((a,b)=>b.rssi-a.rssi).forEach(n=>{const o=document.createElement('option');o.value=n.ssid;o.textContent=(n.open?'🔓 ':'🔒 ')+n.ssid+' ('+n.rssi+')';s.appendChild(o)})}catch(e){toast(t('err'))}}
+$('w_scan').onclick=scan;$('wl').onchange=e=>{if(e.target.value)$('ws').value=e.target.value};
+$('w_save').onclick=async()=>{if(!$('ws').value.trim())return;
+ try{const r=await api('/api/wifi',{method:'POST',body:JSON.stringify({ssid:$('ws').value.trim(),password:$('wp').value})});
+  if(r.ok)toast(t('rb'));else throw 0}catch(e){toast(t('err'))}};
+
+/* system */
+function reboot(){api('/api/reboot',{method:'POST',body:'{}'}).then(()=>toast(t('rb'))).catch(()=>{})}
+$('b_reboot').onclick=reboot;
+$('b_rw').onclick=()=>{if(confirm(t('c_rw')))api('/api/reset-wifi',{method:'POST',body:'{}'}).then(()=>toast(t('rb'))).catch(()=>{})};
+$('b_fr').onclick=()=>{if(confirm(t('c_fr')))api('/api/factory-reset',{method:'POST',body:'{}'}).then(()=>toast(t('rb'))).catch(()=>{})};
+$('ota_go').onclick=()=>{const f=$('ota_f').files[0];if(!f)return;
+ const x=new XMLHttpRequest(),pr=$('ota_pr');pr.style.display='';
+ x.open('POST','/api/ota');x.setRequestHeader('X-Radar','1');x.setRequestHeader('Content-Type','application/octet-stream');
+ x.upload.onprogress=e=>{if(e.lengthComputable)pr.value=e.loaded/e.total*100};
+ x.onload=()=>{try{JSON.parse(x.responseText).ok?toast(t('ota_ok')):toast(t('err'))}catch(e){toast(t('err'))}};
+ x.onerror=()=>toast(t('err'));x.send(f)};
+
+ap();loadCfg().catch(()=>{});poll();
+</script>
+</body>
+</html>

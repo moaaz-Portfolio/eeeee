@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ESP32-S3 WiFi Radar — Install</title>
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+<style>
+:root{--bg:#0e1116;--card:#171b22;--line:#2a313c;--tx:#eef1f5;--mut:#8b95a5;--ac:#19c37d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.7 system-ui,Segoe UI,Tahoma,Arial,sans-serif;padding:32px 18px}
+.w{max-width:680px;margin:0 auto;text-align:center}
+h1{font-size:40px;margin:0}
+.sub{color:var(--ac);font-weight:700;margin:6px 0 18px}
+p{color:var(--mut)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:26px;margin-top:26px}
+.steps{text-align:start;margin-top:30px}
+.s{display:flex;gap:14px;margin:12px 0;padding:14px;border:1px solid var(--line);border-radius:12px;background:#0c0f14}
+.n{min-width:32px;height:32px;border-radius:50%;background:var(--ac);color:#04140c;display:flex;align-items:center;justify-content:center;font-weight:800}
+.s b{display:block}.s span{color:var(--mut);font-size:14px}
+code{color:var(--ac)}
+.lang{background:transparent;border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:6px 14px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="w">
+ <button class="lang" id="lg">EN</button>
+ <h1>📡 WiFi Radar</h1>
+ <div class="sub">ESP32-S3</div>
+ <p data-i="d"></p>
+ <div class="card">
+  <h2 data-i="h"></h2>
+  <p data-i="p"></p>
+  <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
+  <p style="font-size:12px" data-i="req"></p>
+ </div>
+ <div class="steps">
+  <div class="s"><div class="n">1</div><div><b data-i="s1"></b><span data-i="s1d"></span></div></div>
+  <div class="s"><div class="n">2</div><div><b data-i="s2"></b><span data-i="s2d"></span></div></div>
+  <div class="s"><div class="n">3</div><div><b data-i="s3"></b><span data-i="s3d"></span></div></div>
+  <div class="s"><div class="n">4</div><div><b data-i="s4"></b><span data-i="s4d"></span></div></div>
+ </div>
+</div>
+<script>
+const D={
+ar:{d:"حوّل ESP32-S3 لحساس حركة بالواي فاي من غير كاميرا ولا حساسات إضافية.",h:"تنصيب الفيرموير",p:"وصّل اللوحة بالـ USB واضغط الزرار.",req:"محتاج Chrome أو Edge على كمبيوتر.",
+ s1:"اتصل بشبكة S3-Radar-Setup",s1d:"اللوحة بتعمل شبكة مؤقتة بعد التنصيب.",s2:"اختار شبكتك واكتب الباسورد",s2d:"صفحة الإعداد بتفتح لوحدها وفيها قائمة بالشبكات.",
+ s3:"افتح لوحة التحكم",s3d:"من أي جهاز على نفس الشبكة افتح الرابط اللي ظهر لك (مثلاً s3radar-xxxxxx.local).",s4:"اضبط واستمتع",s4d:"حساسية، ألوان، MQTT، Home Assistant، ريلاي، وكل ده من الصفحة."},
+en:{d:"Turn an ESP32-S3 into a Wi-Fi motion sensor. No camera, no extra sensors.",h:"Install firmware",p:"Plug the board in with USB and press the button.",req:"Requires Chrome or Edge on desktop.",
+ s1:"Join the S3-Radar-Setup network",s1d:"The board opens a temporary Wi-Fi network after install.",s2:"Pick your Wi-Fi and enter the password",s2d:"The setup page opens by itself and lists nearby networks.",
+ s3:"Open the dashboard",s3d:"From any device on your network open the address shown (e.g. s3radar-xxxxxx.local).",s4:"Tune it",s4d:"Sensitivity, colours, MQTT, Home Assistant, relay — all from the page."}};
+let l=localStorage.getItem('lang')||'ar';
+function ap(){document.documentElement.lang=l;document.documentElement.dir=l=='ar'?'rtl':'ltr';
+ document.querySelectorAll('[data-i]').forEach(e=>e.textContent=D[l][e.dataset.i]);document.getElementById('lg').textContent=l=='ar'?'EN':'عربي'}
+document.getElementById('lg').onclick=()=>{l=l=='ar'?'en':'ar';localStorage.setItem('lang',l);ap()};ap();
+</script>
+</body>
+</html>

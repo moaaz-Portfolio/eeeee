@@ -1,0 +1,5 @@
+dependencies:
+  idf: '>=5.4'
+  espressif/esp_wifi_sensing: '>=0.1.1'
+  espressif/led_strip: '^3.0.0'
+  espressif/mdns: '*'
